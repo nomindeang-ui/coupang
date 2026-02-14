@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coupang Sales Estimator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .drag-active {
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 min-h-screen p-8 text-gray-800">
+
+    <div class="max-w-2xl mx-auto bg-white shadow-xl rounded-lg p-6">
+        <h1 class="text-3xl font-bold mb-2 text-center text-blue-600">🚀 쿠팡 매출 추정기</h1>
+        <p class="text-center text-gray-500 mb-8">저장한 쿠팡 HTML 파일을 업로드하여 예상 판매량을 확인하세요.</p>
+
+        <!-- Input Section -->
+        <div class="space-y-6">
+
+            <!-- Price Input -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">판매 가격 (원)</label>
+                <input type="number" id="priceInput"
+                    class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    placeholder="예: 19900">
+            </div>
+
+            <!-- File Upload -->
+            <div id="dropZone"
+                class="border-2 border-dashed border-gray-300 rounded-lg p-10 text-center cursor-pointer transition-colors duration-200 hover:border-blue-400 hover:bg-gray-50">
+                <input type="file" id="fileInput" class="hidden" accept=".html,.htm">
+                <div class="space-y-2 pointer-events-none">
+                    <svg class="w-12 h-12 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12">
+                        </path>
+                    </svg>
+                    <p class="text-gray-600 font-medium">HTML 파일을 이곳에 드래그하거나 클릭하세요</p>
+                    <p class="text-xs text-gray-400">(.html, .htm)</p>
+                </div>
+            </div>
+
+            <button onclick="analyze()"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition duration-200">
+                분석 시작하기
+            </button>
+        </div>
+
+        <!-- Result Section -->
+        <div id="resultSection" class="hidden mt-8 border-t pt-6">
+            <h2 class="text-xl font-bold mb-4 flex items-center">
+                📊 분석 결과
+                <span id="productBadge" class="ml-3 text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded hidden"></span>
+            </h2>
+
+            <div class="grid grid-cols-2 gap-4 mb-6">
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <p class="text-sm text-gray-500">가격</p>
+                    <p id="resPrice" class="text-2xl font-bold text-gray-900">-</p>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <p class="text-sm text-gray-500">리뷰 수</p>
+                    <p id="resReviews" class="text-2xl font-bold text-blue-600">-</p>
+                </div>
+            </div>
+
+            <div class="space-y-4">
+                <div class="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                    <p class="text-sm text-blue-600 font-semibold mb-1">예상 총 판매량 (리뷰 수 × 10)</p>
+                    <p id="resFiles" class="text-3xl font-extrabold text-blue-800">- 개</p>
+                </div>
+
+                <div class="bg-green-50 p-4 rounded-lg border border-green-100">
+                    <p class="text-sm text-green-600 font-semibold mb-1">예상 총 매출</p>
+                    <p id="resRevenue" class="text-3xl font-extrabold text-green-800">- 원</p>
+                </div>
+            </div>
+
+            <!-- Daily Analysis -->
+            <div id="dailySection" class="hidden mt-6 bg-yellow-50 p-4 rounded-lg border border-yellow-100">
+                <h3 class="text-lg font-bold text-yellow-800 mb-2">📅 최근 일일 추이 분석</h3>
+                <p class="text-sm text-yellow-700 mb-3">최근 리뷰 날짜를 기반으로 하루 평균 판매량을 추정합니다. <br>(1 리뷰 ≈ 20 판매 가정)</p>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-xs text-yellow-600">일일 평균 리뷰</p>
+                        <p id="resDailyReviews" class="text-xl font-bold text-yellow-900">-</p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-yellow-600">예상 일일 매출</p>
+                        <p id="resDailyRevenue" class="text-xl font-bold text-yellow-900">-</p>
+                    </div>
+                </div>
+                <div id="dateList" class="mt-3 text-xs text-gray-500 font-mono bg-white p-2 rounded"></div>
+            </div>
+
+            <div class="mt-4 text-xs text-gray-400 text-center">
+                * 본 결과는 추정치이며 실제와 다를 수 있습니다.
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const priceInput = document.getElementById('priceInput');
+        const resultSection = document.getElementById('resultSection');
+
+        // Drag & Drop Handlers
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('drag-active');
+        });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-active'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-active');
+            if (e.dataTransfer.files.length) {
+                fileInput.files = e.dataTransfer.files; // Set files
+                analyze(); // Auto analyze on drop
+            }
+        });
+
+        fileInput.addEventListener('change', analyze);
+
+        async function analyze() {
+            const file = fileInput.files[0];
+            const manualPrice = parseInt(priceInput.value.replace(/[^0-9]/g, '')) || 0;
+
+            if (!file) {
+                if (!manualPrice && !fileInput.files.length) {
+                    alert('HTML 파일을 선택해주세요.');
+                    return;
+                }
+            }
+
+            // Show section
+            resultSection.classList.remove('hidden');
+
+            const text = await file.text();
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(text, 'text/html');
+
+            // --- Logic Ported from Node.js Script ---
+
+            // 1. Title
+            let title = '';
+            const h2 = doc.querySelector('h2.prod-buy-header__title');
+            if (h2) title = h2.textContent.trim();
+            else {
+                const meta = doc.querySelector('meta[property="og:title"]');
+                if (meta) title = meta.content;
+                else title = file.name.replace('.html', '');
+            }
+            document.getElementById('productBadge').textContent = title.substring(0, 30) + (title.length > 30 ? '...' : '');
+            document.getElementById('productBadge').classList.remove('hidden');
+
+            // 2. Review Count Logic
+            let reviewCount = 0;
+            const countEl = doc.querySelector('.count'); // General selector
+            if (countEl) {
+                const match = countEl.textContent.match(/\d+/g);
+                if (match) reviewCount = parseInt(match.join(''), 10);
+            }
+
+            // Fallback Regex on full body text
+            if (!reviewCount) {
+                const bodyText = doc.body.textContent;
+                const match = bodyText.match(/상품평\s*([0-9,]+)/);
+                if (match) reviewCount = parseInt(match[1].replace(/,/g, ''), 10);
+            }
+
+            // 3. Price Logic
+            let price = manualPrice;
+            if (!price) {
+                const priceEl = doc.querySelector('.total-price');
+                if (priceEl) {
+                    const txt = priceEl.textContent.replace(/[^0-9]/g, '');
+                    if (txt) price = parseInt(txt, 10);
+                }
+            }
+
+            // 4. Date Analysis Logic (for Daily Sales)
+            const bodyText = doc.body.textContent;
+            // Regex for YYYY.MM.DD
+            const datePattern = /20[2-3][0-9]\.[0-1][0-9]\.[0-3][0-9]/g;
+            const datesFound = bodyText.match(datePattern) || [];
+
+            // Filter & Sort
+            const validDates = datesFound
+                .filter(d => d.startsWith('2024') || d.startsWith('2025'))
+                .sort().reverse();
+
+            // Daily Stats
+            const dailyCounts = {};
+            validDates.forEach(d => dailyCounts[d] = (dailyCounts[d] || 0) + 1);
+            const recentDays = Object.keys(dailyCounts).slice(0, 5); // Top 5
+
+            // Render Results
+            document.getElementById('resPrice').textContent = price.toLocaleString() + ' 원';
+            document.getElementById('resReviews').textContent = reviewCount.toLocaleString() + ' 개';
+
+            // Total Est
+            const totalMult = 10;
+            document.getElementById('resFiles').textContent = (reviewCount * totalMult).toLocaleString() + ' 개';
+            document.getElementById('resRevenue').textContent = (reviewCount * totalMult * price).toLocaleString() + ' 원';
+
+            // Daily Est Render
+            const dailySection = document.getElementById('dailySection');
+            const dateList = document.getElementById('dateList');
+
+            if (recentDays.length > 0) {
+                dailySection.classList.remove('hidden');
+                let daySum = 0;
+                let dayStr = '감지된 날짜: ';
+
+                recentDays.forEach(d => {
+                    daySum += dailyCounts[d];
+                    dayStr += `${d}(${dailyCounts[d]}) `;
+                });
+
+                const avg = daySum / recentDays.length;
+                const dailyMult = 20;
+                const estDaily = Math.round(avg * dailyMult);
+
+                document.getElementById('resDailyReviews').textContent = avg.toFixed(1) + ' 개';
+                document.getElementById('resDailyRevenue').textContent = (estDaily * price).toLocaleString() + ' 원';
+                dateList.textContent = dayStr;
+            } else {
+                dailySection.classList.add('hidden');
+            }
+        }
+    </script>
+</body>
+
+</html>
